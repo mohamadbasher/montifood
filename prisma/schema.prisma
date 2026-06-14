@@ -1,0 +1,144 @@
+// MontiFood — B2B ordering system schema
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// The business owner (MontiFood). Seeded with a single account.
+// `alertEmail` is where new-order notifications are sent.
+model Admin {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  alertEmail   String
+  createdAt    DateTime @default(now())
+}
+
+// A staff member who helps manage the dashboard, with limited permissions.
+// permissions = comma-separated subset of: orders,restaurants,regions,whatsapp
+model Manager {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  name         String
+  permissions  String   @default("")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+// A delivery region with the weekday it gets served.
+// weekday: 0=Sunday (ראשון) ... 6=Saturday (שבת) — matches JS Date.getDay()
+model Region {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  weekday     Int
+  cities      String       @default("") // legacy, unused (cities now in City table)
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  restaurants Restaurant[]
+  orders      Order[]
+  cityList    City[]
+}
+
+// A city belongs to one area (Region). Restaurants pick a city, which determines their area.
+model City {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  regionId  Int
+  region    Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+// A restaurant customer. Logs in with username (restaurant name) + password.
+model Restaurant {
+  id           Int      @id @default(autoincrement())
+  username       String   @unique
+  passwordHash   String
+  loginToken     String?  @unique // secret token for one-click magic-link login
+  name           String
+  customerNumber String? // internal customer/account number — admin-only
+  city           String? // the restaurant's city (its area is derived from this)
+  contactName    String?
+  phone          String?
+  regionId     Int
+  region       Region   @relation(fields: [regionId], references: [id])
+  active       Boolean  @default(true)
+  balance      Float    @default(0) // outstanding amount the restaurant owes MontiFood, in ₪
+  createdAt    DateTime @default(now())
+  orders       Order[]
+  catalog      RestaurantProduct[]
+  receipts     Receipt[]
+}
+
+// A payment receipt recorded by the admin when a restaurant pays.
+// Recording one reduces the restaurant's debt by `amount`. Admin-only.
+model Receipt {
+  id            Int        @id @default(autoincrement())
+  restaurantId  Int
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  receiptNumber String // the receipt/invoice number
+  amount        Float // amount paid, in ₪
+  note          String?
+  createdAt     DateTime   @default(now())
+}
+
+// Per-restaurant catalog: which products a restaurant may order, and at what price.
+// A row's existence = the product is available to that restaurant.
+model RestaurantProduct {
+  id           Int        @id @default(autoincrement())
+  restaurantId Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  productId    Int
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  price        Float      @default(0) // price per unit for this restaurant, in ₪
+  createdAt    DateTime   @default(now())
+
+  @@unique([restaurantId, productId])
+}
+
+// One of MontiFood's products (the 3 tahini items, extendable later).
+model Product {
+  id         Int                 @id @default(autoincrement())
+  name       String
+  imageUrl   String?
+  sortOrder  Int                 @default(0)
+  active     Boolean             @default(true)
+  createdAt  DateTime            @default(now())
+  orderItems OrderItem[]
+  catalog    RestaurantProduct[]
+}
+
+// A submitted order. Stores a snapshot of region + delivery date at order time.
+// status: NEW | CONFIRMED | DELIVERED | CANCELLED (string for SQLite portability)
+model Order {
+  id           Int         @id @default(autoincrement())
+  restaurantId Int
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id])
+  regionId     Int
+  region       Region      @relation(fields: [regionId], references: [id])
+  deliveryDate   DateTime
+  notes          String?
+  status         String      @default("NEW")
+  balanceApplied Boolean     @default(false) // true once this order's total was added to the restaurant's debt
+  archived       Boolean     @default(false) // hidden from active/delivered lists, kept in archive
+  createdAt      DateTime    @default(now())
+  items          OrderItem[]
+}
+
+// A line item: a product + quantity. Stores product name snapshot.
+model OrderItem {
+  id          Int     @id @default(autoincrement())
+  orderId     Int
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   Int
+  product     Product @relation(fields: [productId], references: [id])
+  productName String
+  quantity    Int
+  price       Float   @default(0) // price per unit charged at order time, in ₪
+}
