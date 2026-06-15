@@ -25,11 +25,13 @@ export default function RestaurantsBrowser({
   regions,
   cities,
   canCreate,
+  canPrices,
 }: {
   restaurants: Row[];
   regions: Region[];
   cities: { id: number; name: string; regionName: string }[];
   canCreate: boolean;
+  canPrices: boolean;
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
@@ -57,15 +59,25 @@ export default function RestaurantsBrowser({
       {/* Top bar: title + add button */}
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">מסעדות ({restaurants.length})</h1>
-        {canCreate && (
-          <button
-            onClick={() => setShowAdd((s) => !s)}
-            className="flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 font-semibold text-white transition hover:bg-brand-dark"
-          >
-            <span className="text-lg leading-none">{showAdd ? "×" : "+"}</span>
-            {showAdd ? "סגירה" : "הוספת מסעדה"}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {canPrices && (
+            <Link
+              href="/admin/restaurants/bulk"
+              className="rounded-xl border border-brand bg-brand-light px-4 py-2 font-semibold text-brand-dark transition hover:bg-brand hover:text-white"
+            >
+              ניהול מוצרים ומחירים
+            </Link>
+          )}
+          {canCreate && (
+            <button
+              onClick={() => setShowAdd((s) => !s)}
+              className="flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 font-semibold text-white transition hover:bg-brand-dark"
+            >
+              <span className="text-lg leading-none">{showAdd ? "×" : "+"}</span>
+              {showAdd ? "סגירה" : "הוספת מסעדה"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Collapsible add form */}

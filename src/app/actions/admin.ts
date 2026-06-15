@@ -90,6 +90,51 @@ export async function updateRegion(formData: FormData) {
   revalidatePath("/admin/regions");
 }
 
+// Bulk-set the catalog (which products + prices) for many restaurants at once.
+// Included products are upserted with the given price; unchecked products are removed
+// from the selected restaurants (so they see exactly the chosen products).
+export async function bulkSetCatalog(
+  _prev: FormResult,
+  formData: FormData
+): Promise<FormResult> {
+  await requirePermission("restaurants.prices");
+  const restaurantIds = formData
+    .getAll("rid")
+    .map((x) => parseInt(String(x)))
+    .filter(Boolean);
+  const includedProductIds = new Set(
+    formData.getAll("includedProduct").map((x) => parseInt(String(x)))
+  );
+  if (restaurantIds.length === 0) return { error: "לא נבחרו מסעדות" };
+  if (includedProductIds.size === 0) return { error: "לא נבחרו מוצרים" };
+
+  const products = await prisma.product.findMany({ where: { active: true } });
+  const priceById = new Map<number, number>();
+  for (const p of products) {
+    if (includedProductIds.has(p.id)) {
+      priceById.set(p.id, parseFloat(String(formData.get(`price_${p.id}`) ?? "0")) || 0);
+    }
+  }
+
+  for (const rid of restaurantIds) {
+    for (const p of products) {
+      if (priceById.has(p.id)) {
+        await prisma.restaurantProduct.upsert({
+          where: { restaurantId_productId: { restaurantId: rid, productId: p.id } },
+          update: { price: priceById.get(p.id) },
+          create: { restaurantId: rid, productId: p.id, price: priceById.get(p.id)! },
+        });
+      } else {
+        await prisma.restaurantProduct.deleteMany({
+          where: { restaurantId: rid, productId: p.id },
+        });
+      }
+    }
+  }
+  revalidatePath("/admin/restaurants");
+  return { success: `עודכנו ${restaurantIds.length} מסעדות` };
+}
+
 // Add a city to an area. (Used as a plain form action, so returns void.)
 export async function addCity(formData: FormData) {
   await requirePermission("regions.manage");
