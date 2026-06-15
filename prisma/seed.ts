@@ -24,10 +24,10 @@ async function main() {
 
   // --- Regions (weekday: 0=ראשון ... 6=שבת) ---
   const regions = [
-    { name: "אום אל-פחם", weekday: 0 }, // ראשון
-    { name: "אזור תל אביב", weekday: 1 }, // שני
-    { name: "אזור עפולה", weekday: 3 }, // רביעי
-    { name: "חיפה / שפרעם", weekday: 4 }, // חמישי
+    { name: "אום אל פחם והסביבה", weekday: 0 }, // ראשון
+    { name: "מרכז", weekday: 1 }, // שני
+    { name: "צפון", weekday: 2 }, // שלישי
+    { name: "עפולה והסביבה", weekday: 3 }, // רביעי
   ];
   for (const r of regions) {
     await prisma.region.upsert({
